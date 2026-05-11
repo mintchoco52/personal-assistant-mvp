@@ -269,6 +269,18 @@ function endOfToday() {
   return date
 }
 
+function endOfTomorrow() {
+  const date = endOfToday()
+  date.setDate(date.getDate() + 1)
+  return date
+}
+
+function endOfNextSevenDays() {
+  const date = endOfToday()
+  date.setDate(date.getDate() + 6)
+  return date
+}
+
 function getNextRepeatDue(dueAt, repeat) {
   const date = new Date(dueAt)
   if (repeat === 'daily') date.setDate(date.getDate() + 1)
@@ -350,10 +362,20 @@ function App() {
   const stats = useMemo(() => {
     const now = new Date()
     const todayEnd = endOfToday()
+    const tomorrowEnd = endOfTomorrow()
+    const weekEnd = endOfNextSevenDays()
+    const upcoming = tasks.filter((task) => !task.done && new Date(task.dueAt) >= now)
+    const nextTask = upcoming.sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt))[0]
+
     return {
-      today: tasks.filter((task) => !task.done && new Date(task.dueAt) <= todayEnd).length,
+      today: tasks.filter((task) => !task.done && new Date(task.dueAt) >= now && new Date(task.dueAt) <= todayEnd).length,
+      tomorrow: tasks.filter(
+        (task) => !task.done && new Date(task.dueAt) > todayEnd && new Date(task.dueAt) <= tomorrowEnd,
+      ).length,
+      week: tasks.filter((task) => !task.done && new Date(task.dueAt) >= now && new Date(task.dueAt) <= weekEnd).length,
+      upcoming: upcoming.length,
       missed: tasks.filter((task) => !task.done && new Date(task.dueAt) < now).length,
-      done: tasks.filter((task) => task.done).length,
+      nextTask,
     }
   }, [tasks])
 
@@ -507,16 +529,37 @@ function App() {
       <section className="dashboard">
         <article>
           <span>{stats.today}</span>
-          오늘 처리
+          오늘 일정
         </article>
         <article>
-          <span>{stats.missed}</span>
-          놓친 일
+          <span>{stats.tomorrow}</span>
+          내일 일정
         </article>
         <article>
-          <span>{stats.done}</span>
-          완료
+          <span>{stats.week}</span>
+          7일 안에
         </article>
+        <article>
+          <span>{stats.upcoming}</span>
+          전체 예정
+        </article>
+      </section>
+
+      <section className="next-summary">
+        {stats.nextTask ? (
+          <>
+            <p>가장 가까운 일정</p>
+            <strong>{stats.nextTask.title}</strong>
+            <span>{formatDue(stats.nextTask.dueAt)}</span>
+          </>
+        ) : (
+          <>
+            <p>가장 가까운 일정</p>
+            <strong>예정된 일정이 없어요</strong>
+            <span>빠른 추가로 다음 일을 하나 맡겨두면 돼요.</span>
+          </>
+        )}
+        {stats.missed > 0 && <em>놓친 일이 {stats.missed}개 있어요.</em>}
       </section>
 
       <div className="workspace">
