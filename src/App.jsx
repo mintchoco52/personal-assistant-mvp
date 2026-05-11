@@ -190,7 +190,8 @@ function parseNaturalTask(text) {
     .replace(new RegExp(`(${WEEKDAY_PATTERN})(?:요일)?`, 'g'), '')
     .replace(/(오전|오후|아침|저녁|밤|새벽|점심)?\s*\d{1,2}\s*(?:시|:)\s*(반|\d{0,2}\s*분?)?/g, '')
     .replace(/중요|꼭|필수|긴급|나중에|언젠가|천천히/g, '')
-    .replace(/\s*(에|까지|부터)\s*/g, ' ')
+    .replace(/\s+(에|까지|부터)\s+/g, ' ')
+    .replace(/\s+(에|까지|부터)$/g, '')
     .replace(/\s+/g, ' ')
     .trim()
 
