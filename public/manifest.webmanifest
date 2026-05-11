@@ -1,0 +1,26 @@
+{
+  "name": "개인 비서 MVP",
+  "short_name": "개인 비서",
+  "description": "오늘 할 일, 놓친 일, 반복 알림을 빠르게 관리하는 개인 비서 MVP",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f2f6f1",
+  "theme_color": "#21674a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/assistant-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "오늘 할 일 보기",
+      "short_name": "오늘",
+      "url": "/"
+    }
+  ]
+}
