@@ -269,16 +269,30 @@ function endOfToday() {
   return date
 }
 
-function endOfTomorrow() {
-  const date = endOfToday()
-  date.setDate(date.getDate() + 1)
-  return date
+function startOfMonth(date) {
+  const monthStart = new Date(date)
+  monthStart.setDate(1)
+  monthStart.setHours(0, 0, 0, 0)
+  return monthStart
 }
 
-function endOfNextSevenDays() {
-  const date = endOfToday()
-  date.setDate(date.getDate() + 6)
-  return date
+function isSameDay(a, b) {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  )
+}
+
+function formatDateKey(date) {
+  return toInputDateTime(date).slice(0, 10)
+}
+
+function formatMonthTitle(date) {
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: 'long',
+  }).format(date)
 }
 
 function getNextRepeatDue(dueAt, repeat) {
@@ -301,6 +315,8 @@ function App() {
   )
   const [naturalText, setNaturalText] = useState('')
   const [naturalPreview, setNaturalPreview] = useState(null)
+  const [calendarMonth, setCalendarMonth] = useState(() => startOfMonth(new Date()))
+  const [selectedDate, setSelectedDate] = useState(() => formatDateKey(new Date()))
   const [draft, setDraft] = useState({
     title: '',
     notes: '',
@@ -361,23 +377,50 @@ function App() {
 
   const stats = useMemo(() => {
     const now = new Date()
-    const todayEnd = endOfToday()
-    const tomorrowEnd = endOfTomorrow()
-    const weekEnd = endOfNextSevenDays()
     const upcoming = tasks.filter((task) => !task.done && new Date(task.dueAt) >= now)
     const nextTask = upcoming.sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt))[0]
 
     return {
-      today: tasks.filter((task) => !task.done && new Date(task.dueAt) >= now && new Date(task.dueAt) <= todayEnd).length,
-      tomorrow: tasks.filter(
-        (task) => !task.done && new Date(task.dueAt) > todayEnd && new Date(task.dueAt) <= tomorrowEnd,
-      ).length,
-      week: tasks.filter((task) => !task.done && new Date(task.dueAt) >= now && new Date(task.dueAt) <= weekEnd).length,
-      upcoming: upcoming.length,
       missed: tasks.filter((task) => !task.done && new Date(task.dueAt) < now).length,
       nextTask,
     }
   }, [tasks])
+
+  const calendarDays = useMemo(() => {
+    const monthStart = startOfMonth(calendarMonth)
+    const first = new Date(monthStart)
+    first.setDate(first.getDate() - first.getDay())
+
+    return Array.from({ length: 42 }, (_, index) => {
+      const date = new Date(first)
+      date.setDate(first.getDate() + index)
+      const dayTasks = tasks
+        .filter((task) => !task.done && isSameDay(new Date(task.dueAt), date))
+        .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt))
+
+      return {
+        date,
+        key: formatDateKey(date),
+        inMonth: date.getMonth() === calendarMonth.getMonth(),
+        isToday: isSameDay(date, new Date()),
+        tasks: dayTasks,
+      }
+    })
+  }, [calendarMonth, tasks])
+
+  const selectedTasks = useMemo(() => {
+    return tasks
+      .filter((task) => !task.done && task.dueAt.slice(0, 10) === selectedDate)
+      .sort((a, b) => new Date(a.dueAt) - new Date(b.dueAt))
+  }, [selectedDate, tasks])
+
+  function moveCalendarMonth(amount) {
+    setCalendarMonth((current) => {
+      const next = new Date(current)
+      next.setMonth(current.getMonth() + amount)
+      return startOfMonth(next)
+    })
+  }
 
   const visibleTasks = useMemo(() => {
     const now = new Date()
@@ -526,23 +569,54 @@ function App() {
         </div>
       </section>
 
-      <section className="dashboard">
-        <article>
-          <span>{stats.today}</span>
-          오늘 일정
-        </article>
-        <article>
-          <span>{stats.tomorrow}</span>
-          내일 일정
-        </article>
-        <article>
-          <span>{stats.week}</span>
-          7일 안에
-        </article>
-        <article>
-          <span>{stats.upcoming}</span>
-          전체 예정
-        </article>
+      <section className="calendar-panel">
+        <div className="calendar-header">
+          <button type="button" onClick={() => moveCalendarMonth(-1)} aria-label="이전 달">
+            ‹
+          </button>
+          <h2>{formatMonthTitle(calendarMonth)}</h2>
+          <button type="button" onClick={() => moveCalendarMonth(1)} aria-label="다음 달">
+            ›
+          </button>
+        </div>
+        <div className="calendar-weekdays">
+          {['일', '월', '화', '수', '목', '금', '토'].map((day) => (
+            <span key={day}>{day}</span>
+          ))}
+        </div>
+        <div className="calendar-grid">
+          {calendarDays.map((day) => (
+            <button
+              key={day.key}
+              type="button"
+              className={[
+                'calendar-day',
+                day.inMonth ? '' : 'muted',
+                day.isToday ? 'today' : '',
+                selectedDate === day.key ? 'selected' : '',
+              ].join(' ')}
+              onClick={() => setSelectedDate(day.key)}
+            >
+              <span>{day.date.getDate()}</span>
+              {day.tasks.length > 0 && (
+                <strong aria-label={`${day.tasks.length}개 일정`}>{day.tasks.length}</strong>
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="calendar-agenda">
+          <p>{new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' }).format(new Date(selectedDate))}</p>
+          {selectedTasks.length === 0 ? (
+            <span>이 날은 맡겨둔 일정이 없어요.</span>
+          ) : (
+            selectedTasks.map((task) => (
+              <article key={task.id}>
+                <strong>{task.title}</strong>
+                <span>{formatDue(task.dueAt)}</span>
+              </article>
+            ))
+          )}
+        </div>
       </section>
 
       <section className="next-summary">
