@@ -125,7 +125,7 @@ function parseNaturalTask(text) {
   }
 
   const weekdayMatch = normalized.match(/(이번주|다음주|담주|매주)?\s*(일요일|월요일|화요일|수요일|목요일|금요일|토요일|일욜|월욜|화욜|수욜|목욜|금욜|토욜|[일월화수목금토])(?:요일)?/)
-  if (weekdayMatch && !monthDayMatch) {
+  if (weekdayMatch && !hasDate) {
     const target = WEEKDAYS[weekdayMatch[2]]
     const next = nextWeekday(target)
     if (/다음주|담주/.test(weekdayMatch[1] || '')) next.setDate(next.getDate() + 7)
@@ -182,9 +182,9 @@ function parseNaturalTask(text) {
     .replace(/(\d+|한|두|세)\s*(분|시간|일)\s*전(?:에)?/g, '')
     .replace(/(\d+|한|두|세)\s*(분|시간|일)\s*(뒤|후)/g, '')
     .replace(/매일마다|매주마다|매월마다|매달마다|매일|매주|매월|매달|반복/g, '')
-    .replace(/오늘|내일|낼|모레|이번주|다음주|담주|이번|다음/g, '')
     .replace(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/g, '')
     .replace(/(이번달|이번 달|다음달|다음 달)?\s*(\d{1,2})\s*일/g, '')
+    .replace(/오늘|내일|낼|모레|이번주|다음주|담주|이번|다음/g, '')
     .replace(/(일요일|월요일|화요일|수요일|목요일|금요일|토요일|일욜|월욜|화욜|수욜|목욜|금욜|토욜|[일월화수목금토])(?:요일)?/g, '')
     .replace(/(오전|오후|아침|저녁|밤|새벽|점심)?\s*\d{1,2}\s*(?:시|:)\s*(반|\d{0,2}\s*분?)?/g, '')
     .replace(/중요|꼭|필수|긴급|나중에|언젠가|천천히/g, '')
