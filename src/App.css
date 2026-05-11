@@ -142,6 +142,35 @@ button {
   background: #ffffff;
 }
 
+.natural-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.natural-preview {
+  display: grid;
+  gap: 4px;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #4c5c54;
+  padding: 10px 12px;
+}
+
+.natural-preview strong {
+  color: #17231d;
+}
+
+.natural-preview span,
+.natural-preview em {
+  font-size: 13px;
+  font-style: normal;
+}
+
+.natural-preview em {
+  color: #8a6421;
+}
+
 label {
   display: grid;
   gap: 8px;

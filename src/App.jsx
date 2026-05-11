@@ -18,19 +18,39 @@ function createId() {
 
 const WEEKDAYS = {
   일: 0,
+  일욜: 0,
   일요일: 0,
   월: 1,
+  월욜: 1,
   월요일: 1,
   화: 2,
+  화욜: 2,
   화요일: 2,
   수: 3,
+  수욜: 3,
   수요일: 3,
   목: 4,
+  목욜: 4,
   목요일: 4,
   금: 5,
+  금욜: 5,
   금요일: 5,
   토: 6,
+  토욜: 6,
   토요일: 6,
+}
+
+const KOREAN_NUMBERS = {
+  한: 1,
+  두: 2,
+  세: 3,
+  네: 4,
+  다섯: 5,
+  여섯: 6,
+  일곱: 7,
+  여덟: 8,
+  아홉: 9,
+  열: 10,
 }
 
 function nextWeekday(targetDay) {
@@ -38,6 +58,10 @@ function nextWeekday(targetDay) {
   const diff = (targetDay + 7 - date.getDay()) % 7 || 7
   date.setDate(date.getDate() + diff)
   return date
+}
+
+function parseAmount(value) {
+  return KOREAN_NUMBERS[value] || Number(value)
 }
 
 function parseNaturalTask(text) {
@@ -49,73 +73,108 @@ function parseNaturalTask(text) {
   let repeat = 'none'
   let priority = 'medium'
   let remindBefore = 10
+  let hasDate = false
+  let hasTime = false
 
-  if (/매일|매일마다|매일\s*반복/.test(normalized)) repeat = 'daily'
-  if (/매주|매주마다|매주\s*반복/.test(normalized)) repeat = 'weekly'
-  if (/매월|매달|매월마다|매달마다/.test(normalized)) repeat = 'monthly'
+  if (/매일|매일마다|매일\s*반복|매일\s*아침|매일\s*저녁/.test(normalized)) repeat = 'daily'
+  if (/매주|매주마다|매주\s*반복|매주\s*[일월화수목금토]/.test(normalized)) repeat = 'weekly'
+  if (/매월|매달|매월마다|매달마다|매달\s*\d/.test(normalized)) repeat = 'monthly'
   if (/중요|꼭|필수|긴급/.test(normalized)) priority = 'high'
   if (/나중에|언젠가|천천히/.test(normalized)) priority = 'low'
 
-  const remindMatch = normalized.match(/(\d+)\s*(분|시간|일)\s*전/)
+  const remindMatch = normalized.match(/(\d+|한|두|세)\s*(분|시간|일)\s*전(?:에)?/)
   if (remindMatch) {
-    const amount = Number(remindMatch[1])
+    const amount = parseAmount(remindMatch[1])
     const unit = remindMatch[2]
     remindBefore = unit === '분' ? amount : unit === '시간' ? amount * 60 : amount * 1440
   }
 
-  if (/모레/.test(normalized)) {
+  const relativeDayMatch = normalized.match(/(\d+|한|두|세)\s*일\s*(뒤|후)/)
+  if (relativeDayMatch) {
+    due.setDate(due.getDate() + parseAmount(relativeDayMatch[1]))
+    hasDate = true
+  } else if (/모레/.test(normalized)) {
     due.setDate(due.getDate() + 2)
-  } else if (/내일/.test(normalized)) {
+    hasDate = true
+  } else if (/내일|낼/.test(normalized)) {
     due.setDate(due.getDate() + 1)
+    hasDate = true
   } else if (/오늘/.test(normalized)) {
     due.setDate(due.getDate())
+    hasDate = true
   }
 
   const monthDayMatch = normalized.match(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/)
   if (monthDayMatch) {
     due.setMonth(Number(monthDayMatch[1]) - 1, Number(monthDayMatch[2]))
     if (due < new Date()) due.setFullYear(due.getFullYear() + 1)
+    hasDate = true
   }
 
-  const weekdayMatch = normalized.match(/(?:이번|다음|매주)?\s*(일요일|월요일|화요일|수요일|목요일|금요일|토요일|[일월화수목금토])(?:요일)?/)
+  const weekdayMatch = normalized.match(/(이번주|다음주|담주|매주)?\s*(일요일|월요일|화요일|수요일|목요일|금요일|토요일|일욜|월욜|화욜|수욜|목욜|금욜|토욜|[일월화수목금토])(?:요일)?/)
   if (weekdayMatch && !monthDayMatch) {
-    const target = WEEKDAYS[weekdayMatch[1]]
+    const target = WEEKDAYS[weekdayMatch[2]]
     const next = nextWeekday(target)
+    if (/다음주|담주/.test(weekdayMatch[1] || '')) next.setDate(next.getDate() + 7)
     due.setFullYear(next.getFullYear(), next.getMonth(), next.getDate())
+    hasDate = true
   }
 
   let hour = 18
   let minute = 0
-  const timeMatch = normalized.match(/(오전|오후|아침|저녁|밤|새벽)?\s*(\d{1,2})\s*(?:시|:)\s*(\d{1,2})?\s*분?/)
+  const relativeHourMatch = normalized.match(/(\d+|한|두|세)\s*시간\s*(뒤|후)/)
+  const relativeMinuteMatch = normalized.match(/(\d+|한|두|세)\s*분\s*(뒤|후)/)
+  const timeMatch = normalized.match(/(오전|오후|아침|점심|저녁|밤|새벽)?\s*(\d{1,2})\s*(?:시|:)\s*(반|(\d{1,2})\s*분?)?/)
   if (timeMatch) {
     const meridiem = timeMatch[1]
     hour = Number(timeMatch[2])
-    minute = Number(timeMatch[3] || 0)
-    if ((meridiem === '오후' || meridiem === '저녁' || meridiem === '밤') && hour < 12) hour += 12
+    minute = timeMatch[3] === '반' ? 30 : Number(timeMatch[4] || 0)
+    if ((meridiem === '오후' || meridiem === '점심' || meridiem === '저녁' || meridiem === '밤') && hour < 12) hour += 12
     if ((meridiem === '오전' || meridiem === '아침' || meridiem === '새벽') && hour === 12) hour = 0
+    hasTime = true
+  } else if (relativeHourMatch) {
+    const next = new Date(Date.now() + parseAmount(relativeHourMatch[1]) * 60 * 60000)
+    due.setFullYear(next.getFullYear(), next.getMonth(), next.getDate())
+    hour = next.getHours()
+    minute = next.getMinutes()
+    hasDate = true
+    hasTime = true
+  } else if (relativeMinuteMatch) {
+    const next = new Date(Date.now() + parseAmount(relativeMinuteMatch[1]) * 60000)
+    due.setFullYear(next.getFullYear(), next.getMonth(), next.getDate())
+    hour = next.getHours()
+    minute = next.getMinutes()
+    hasDate = true
+    hasTime = true
   } else if (/아침/.test(normalized)) {
     hour = 8
+    hasTime = true
   } else if (/점심/.test(normalized)) {
     hour = 12
+    hasTime = true
   } else if (/저녁/.test(normalized)) {
     hour = 19
+    hasTime = true
   } else if (/밤/.test(normalized)) {
     hour = 21
+    hasTime = true
   }
 
   due.setHours(hour, minute)
-  if (!/내일|모레|오늘|월|요일|[일월화수목금토]/.test(normalized) && due < new Date()) {
+  if (!hasDate && due < new Date()) {
     due.setDate(due.getDate() + 1)
   }
 
   normalized = normalized
-    .replace(/(\d+)\s*(분|시간|일)\s*전/g, '')
+    .replace(/(\d+|한|두|세)\s*(분|시간|일)\s*전(?:에)?/g, '')
+    .replace(/(\d+|한|두|세)\s*(분|시간|일)\s*(뒤|후)/g, '')
     .replace(/매일마다|매주마다|매월마다|매달마다|매일|매주|매월|매달|반복/g, '')
-    .replace(/오늘|내일|모레|이번|다음/g, '')
+    .replace(/오늘|내일|낼|모레|이번주|다음주|담주|이번|다음/g, '')
     .replace(/(\d{1,2})\s*월\s*(\d{1,2})\s*일/g, '')
-    .replace(/(일요일|월요일|화요일|수요일|목요일|금요일|토요일|[일월화수목금토])(?:요일)?/g, '')
-    .replace(/(오전|오후|아침|저녁|밤|새벽|점심)?\s*\d{1,2}\s*(?:시|:)\s*\d{0,2}\s*분?/g, '')
+    .replace(/(일요일|월요일|화요일|수요일|목요일|금요일|토요일|일욜|월욜|화욜|수욜|목욜|금욜|토욜|[일월화수목금토])(?:요일)?/g, '')
+    .replace(/(오전|오후|아침|저녁|밤|새벽|점심)?\s*\d{1,2}\s*(?:시|:)\s*(반|\d{0,2}\s*분?)?/g, '')
     .replace(/중요|꼭|필수|긴급|나중에|언젠가|천천히/g, '')
+    .replace(/\s*(에|까지|부터)\s*/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
 
@@ -125,6 +184,8 @@ function parseNaturalTask(text) {
     remindBefore: String(remindBefore),
     repeat,
     priority,
+    summary: `${formatDue(toInputDateTime(due))} · ${REPEAT_OPTIONS[repeat]} · ${remindBefore}분 전`,
+    confidence: hasTime ? 'good' : 'time-defaulted',
   }
 }
 
@@ -211,6 +272,7 @@ function App() {
     window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone,
   )
   const [naturalText, setNaturalText] = useState('')
+  const [naturalPreview, setNaturalPreview] = useState(null)
   const [draft, setDraft] = useState({
     title: '',
     notes: '',
@@ -298,11 +360,7 @@ function App() {
     setDraft((current) => ({ ...current, [name]: value }))
   }
 
-  function applyNaturalText(event) {
-    event.preventDefault()
-    if (!naturalText.trim()) return
-
-    const parsed = parseNaturalTask(naturalText)
+  function fillDraftFromParsed(parsed) {
     setDraft((current) => ({
       ...current,
       title: parsed.title,
@@ -311,27 +369,52 @@ function App() {
       repeat: parsed.repeat,
       priority: parsed.priority,
     }))
+    setNaturalPreview(parsed)
+  }
+
+  function applyNaturalText(event) {
+    event.preventDefault()
+    if (!naturalText.trim()) return
+
+    fillDraftFromParsed(parseNaturalTask(naturalText))
+  }
+
+  function buildTaskFromDraft(source) {
+    return {
+      id: createId(),
+      title: source.title.trim(),
+      notes: source.notes?.trim() || '',
+      dueAt: source.dueAt,
+      remindBefore: Number(source.remindBefore),
+      repeat: source.repeat,
+      priority: source.priority,
+      done: false,
+      notifiedAt: null,
+      createdAt: new Date().toISOString(),
+    }
+  }
+
+  function addParsedTask(event) {
+    event.preventDefault()
+    if (!naturalText.trim()) return
+
+    const parsed = parseNaturalTask(naturalText)
+    setTasks((current) => [
+      buildTaskFromDraft({
+        ...draft,
+        ...parsed,
+      }),
+      ...current,
+    ])
+    setNaturalText('')
+    setNaturalPreview(null)
   }
 
   function addTask(event) {
     event.preventDefault()
     if (!draft.title.trim()) return
 
-    setTasks((current) => [
-      {
-        id: createId(),
-        title: draft.title.trim(),
-        notes: draft.notes.trim(),
-        dueAt: draft.dueAt,
-        remindBefore: Number(draft.remindBefore),
-        repeat: draft.repeat,
-        priority: draft.priority,
-        done: false,
-        notifiedAt: null,
-        createdAt: new Date().toISOString(),
-      },
-      ...current,
-    ])
+    setTasks((current) => [buildTaskFromDraft(draft), ...current])
 
     setDraft((current) => ({
       ...current,
@@ -339,6 +422,7 @@ function App() {
       notes: '',
       dueAt: nextDateTime(18, 0),
     }))
+    setNaturalPreview(null)
   }
 
   function toggleDone(task) {
@@ -427,16 +511,31 @@ function App() {
               자연어 입력
               <input
                 value={naturalText}
-                onChange={(event) => setNaturalText(event.target.value)}
+                onChange={(event) => {
+                  setNaturalText(event.target.value)
+                  setNaturalPreview(null)
+                }}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter') applyNaturalText(event)
                 }}
-                placeholder="예: 내일 오후 3시에 병원 예약 30분 전"
+                placeholder="예: 낼 오후3시반 병원 예약 한시간 전"
               />
             </label>
-            <button className="ghost-button" type="button" onClick={applyNaturalText}>
-              해석하기
-            </button>
+            {naturalPreview && (
+              <div className="natural-preview">
+                <strong>{naturalPreview.title}</strong>
+                <span>{naturalPreview.summary}</span>
+                {naturalPreview.confidence === 'time-defaulted' && <em>시간이 없어서 오후 6시로 잡았어요.</em>}
+              </div>
+            )}
+            <div className="natural-actions">
+              <button className="ghost-button" type="button" onClick={applyNaturalText}>
+                해석하기
+              </button>
+              <button className="primary-button" type="button" onClick={addParsedTask}>
+                바로 추가
+              </button>
+            </div>
           </div>
           <label>
             할 일
